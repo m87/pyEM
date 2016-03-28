@@ -1,4 +1,19 @@
+from matplotlib import pyplot as plt
+from matplotlib.patches import Ellipse
+from scipy.stats import chi2
+from sklearn import mixture as mix
 import numpy as np
+
+class VecError(Exception): pass
+
+def vec(src):
+    if len(np.shape(src)) == 2 and np.shape(src)[0] == 1:
+        return np.array(src)
+    if len(np.shape(src)) == 1:
+        return np.array([src])
+    
+    raise VecError()
+
 
 class Model():
     def __init__(self,n,dim):
@@ -77,3 +92,45 @@ class DataStream(object):
 
     def __getitem__(self, item):
         return np.array(self.src[item])
+
+
+
+def eigsorted(cov):
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    return vals[order], vecs[:, order]
+
+
+def display_result(model, instances):
+    plt.plot()
+    plt.title('model')
+
+    i = list(zip(*instances))
+    plt.scatter(x=i[0], y=i[1])
+    ax = None
+    if ax is None:
+        ax = plt.gca()
+
+    for mo in range(model.n):
+        vals, vecs = eigsorted(model.covars[mo])
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        width, height = 2 * np.sqrt(chi2.ppf(0.5, 2)) * np.sqrt(vals)
+        ellip = Ellipse(xy=model.means[mo,0], width=width, height=height, angle=theta, alpha=0.5, color='red')
+
+        ax.add_artist(ellip)
+
+    plt.show()
+
+
+def display_err(err):
+    plt.plot(err)
+    plt.show()
+
+
+
+
+class Stats():
+    def __init__(self):
+        self.error = []
+
