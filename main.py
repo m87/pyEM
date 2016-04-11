@@ -1,19 +1,17 @@
 import argparse
-from utils import Model
-from utils import DataStream
-from utils import MultivariateGaussian
+from stepwise import Stepwise
+from entropy import Entropy
+from incremental import Incremental
 import utils
-import online
-import offline
+from dataset import Dataset
+from  mnist import MNIST
+from offline import Batch
 
 algs = {
-    "stepwise": online.Stepwise,
-    "batch" : offline.Batch,
-    "batch-entropy" : offline.BatchEntropy,
-    "entropy" : online.Entropy,
-    "incremental-one" : online.IncrementalOne,
-    "incremental-k" : online.IncrementalK,
-    "incremental-inf" : online.IncrementalInf,
+    "stepwise": Stepwise,
+    "incremental": Incremental,
+    "entropy": Entropy,
+    "batch": Batch,
 
 }
 
@@ -23,30 +21,46 @@ def main():
     parser.add_argument('-p', '--param', help='Params', type=str)
     parser.add_argument('-n', '--size', help='Size', type=int)
     parser.add_argument('-c', '--clusters', help='Clusters', type=int)
+    parser.add_argument('-m', '--mnist', help='Clusters', type=bool)
     args = parser.parse_args()
 
-    model = Model(2,2)
-    model.set(0,0.5, ((20,50)), ((50,20),(20, 10)))
-    model.set(1,0.5, ((12,10)), ((1,0),(0, 1)))
+    model = []
+    m1 = {
+          'w': 0.5,
+          'm': (2,5),
+          'c': ((5,2),(2,1))
+         }
+    m2 = {
+          'w': 0.5,
+          'm': (12,10),
+          'c': ((1,0),(0,1))
+         }
 
-    ga = MultivariateGaussian(model)
-    ar = ga.array(args.size * 2)
-    stream = DataStream(src=ar, n=args.size, size=1)
-
-    param = 0
-    if args.param:
-        if (args.algorithm.startswith('inc')):
-            param = int(args.param)
-        else:
-            param = float(args.param)
-
-
-    alg = algs[args.algorithm](args.clusters, param)
-    models = alg.fit(stream)
+    model.append(m1)
+    model.append(m2)
 
 
-    utils.display_result(models, ar)
-    utils.display_err(alg.stats.error)
+    if args.mnist:
+        m = MNIST("./data/mnist")
+        m.load_testing()
+        m.load_training()
+        t = []
+        t.extend(m.test_images)
+        t.extend(m.train_images)
+        stream = Dataset(src=t, n=args.size, size=1)
+    else:
+        ar = utils.gen(model, args.size)
+        stream = Dataset(src=ar, n=args.size, size=1)
+
+    #print(">>training")
+    alg = algs[args.algorithm](args.clusters, args.param)
+    alg.fit(stream)
+    #alg.save("./model")
+    print(alg)
+
+    utils.display_err(alg.hist)
+
+
 
 if __name__ == '__main__':
     main()

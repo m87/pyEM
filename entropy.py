@@ -1,21 +1,33 @@
 import utils as uts
 import numpy as np
 
-class Batch(object):
+class Entropy(object):
     def __init__(self, n_clusters, parma=None):
         self.n = n_clusters
-        self.param = int(parma)
+        self.lam= 1.9
 
     def __e(self, X):
-        self.resps = self.weights * np.exp(uts.log_mvnpdf(np.array(X[:self.param]), self.means, self.covars))
+        self.resps = self.weights * np.exp(uts.log_mvnpdf(np.array([X]), self.means, self.covars))
         np.clip(self.resps, 0.000000000001, np.inf, out=self.resps)
-        self.resps /= np.sum(self.resps, axis=1)[:,None]
+        self.resps = np.array(self.resps[0])
+        self.resps /= self.resps.sum()
 
     def __m(self, X):
-        self.sumResps = np.sum(self.resps, axis=0)
-        self.sumMeans = np.sum((self.resps.T[:,None]*X[:self.param].T), axis=2)
-        self.weights = self.sumResps / self.param
-        self.means =  self.sumMeans / self.sumResps[:,None]
+        self.N += 1
+        tmp = self.weights * np.exp(-self.lam*self.resps)
+        self.weights = tmp / tmp.sum()
+
+
+        for c in np.arange(self.n):
+
+            diff = X - self.means[c]
+            self.means[c] += self.lam * self.resps[c]*diff
+
+
+            iC = np.linalg.inv(self.covars[c])
+            d = np.array((diff,))
+            iC += self.lam * self.resps[c] * (iC - (np.dot(iC,d.T).dot(d).dot(iC) ))
+            #self.covars[c] = np.linalg.inv(iC)
 
 
 
@@ -23,10 +35,10 @@ class Batch(object):
         #print(np.exp(uts.log_mvnpdf(np.array([[1,1]]), np.array([[1,1]]), np.array([[[1,0],[0,1]]]))))
         #print(dataset.shape())
         self.__prepare(dataset)
-        for i in range(10):
-            print(i)
-            self.__e(dataset)
-            self.__m(dataset)
+        for it, X in dataset:
+            print(it)
+            self.__e(X)
+            self.__m(X)
 
 
 
@@ -34,6 +46,9 @@ class Batch(object):
         shape = dataset.shape()
         dim = shape[0][0]
         self.N = 0;
+        self.accResps = np.zeros((self.n,))
+        self.accMeans = np.zeros((self.n,dim))
+        self.accCovars = np.zeros((self.n,dim,dim))
         self.weights = np.ones((self.n,))
         self.weights /= self.n
         self.means = np.zeros((self.n,dim))
