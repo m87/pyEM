@@ -1,67 +1,48 @@
 import utils as uts
 import numpy as np
+import scipy
+import online
+from scipy.misc import logsumexp
 
-class Entropy(object):
+EPS = np.finfo(float).eps
+class Entropy(online.OnlineEM):
     def __init__(self, n_clusters, parma=None):
-        self.n = n_clusters
-        self.lam= 1.9
+        super().__init__(n_clusters)
+        self.lam= 0.9
+        self.histAcc = 0.0
 
-    def __e(self, X):
-        self.resps = self.weights * np.exp(uts.log_mvnpdf(np.array([X]), self.means, self.covars))
-        np.clip(self.resps, 0.000000000001, np.inf, out=self.resps)
-        self.resps = np.array(self.resps[0])
-        self.resps /= self.resps.sum()
+    def e(self, X):
+        lg = uts.log_mvnpdf(np.array([X]), self.means, self.covars)
+        logResps = lg[0] + np.log(self.weights)
+        self.histAcc += logsumexp(logResps)
+        self.hist.append(-self.histAcc/self.N)
 
-    def __m(self, X):
+        maxLg = np.max(logResps)
+        logResps -= maxLg
+        self.resps = np.exp(logResps)
+        self.resps /= np.sum(self.resps)
         self.N += 1
-        tmp = self.weights * np.exp(-self.lam*self.resps)
-        self.weights = tmp / tmp.sum()
+
+    def m(self, X):
+        accWeights = self.weights *np.exp( -self.lam * self.resps)
+        tmp =(accWeights.sum() + 10 * EPS) + 10 * EPS
+        self.weights = accWeights / tmp
+        self.lam -= 0.00001
 
 
         for c in np.arange(self.n):
+            self.means[c] += self.lam * self.resps[c] * (X - self.means[c])
 
+         #   self.means[c] += self.lam * self.resps[c]*diff
+
+            self.weights /= sum(self.weights)
+            
             diff = X - self.means[c]
-            self.means[c] += self.lam * self.resps[c]*diff
-
-
-            iC = np.linalg.inv(self.covars[c])
+            iC = scipy.linalg.inv(self.covars[c])
             d = np.array((diff,))
-            iC += self.lam * self.resps[c] * (iC - (np.dot(iC,d.T).dot(d).dot(iC) ))
-            #self.covars[c] = np.linalg.inv(iC)
-
-
-
-    def fit(self, dataset):
-        #print(np.exp(uts.log_mvnpdf(np.array([[1,1]]), np.array([[1,1]]), np.array([[[1,0],[0,1]]]))))
-        #print(dataset.shape())
-        self.__prepare(dataset)
-        for it, X in dataset:
-            print(it)
-            self.__e(X)
-            self.__m(X)
-
-
-
-    def __prepare(self, dataset):
-        shape = dataset.shape()
-        dim = shape[0][0]
-        self.N = 0;
-        self.accResps = np.zeros((self.n,))
-        self.accMeans = np.zeros((self.n,dim))
-        self.accCovars = np.zeros((self.n,dim,dim))
-        self.weights = np.ones((self.n,))
-        self.weights /= self.n
-        self.means = np.zeros((self.n,dim))
-        for it in range(self.n):
-            self.means[it] = dataset[it]
-        self.covars = np.array([np.identity(dim) for x in range(self.n)])
-
-
-
-    def __str__(self):
-        out = ""
-        np.set_printoptions(threshold=np.nan)
-        out += 'w: ' + str(self.weights) + '\nm: ' + str(self.means)# + '\nc: ' + str(self.covars)
-        return out
+            iC = iC +self.lam * self.resps[c] * (iC - np.dot(iC,d.T).dot(d).dot(iC) ) #* np.identity(self.dim)
+            ctmp = scipy.linalg.inv(iC) #+ 0.001 * np.ones((self.dim, self.dim))
+            self.covars[c] = ctmp
+#            print(np.linalg.eigvals(ctmp))
 
 

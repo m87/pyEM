@@ -1,68 +1,60 @@
 import utils as uts
 import numpy as np
+import online
+from scipy.misc import logsumexp
+EPS = np.finfo(float).eps
 
-class Stepwise(object):
-    def __init__(self, n_clusters, parma=None):
-        self.n = n_clusters
+mvnpdf = {'full': uts.log_mvnpdf, 'diag': uts.log_mvnpdf_diag}
 
-    def __e(self, X):
-        self.resps = self.weights * np.exp(uts.log_mvnpdf(np.array([X]), self.means, self.covars))
-        np.clip(self.resps, 0.000000000001, np.inf, out=self.resps)
-        self.resps = np.array(self.resps[0])
-        self.resps /= self.resps.sum()
 
-    def __m(self, X):
-        self.N += 1
-        lam = 1.0/self.N
-        self.accResps += self.resps
-        self.accMeans += X * self.resps[:,None]
+class Stepwise(online.OnlineEM):
+    def __init__(self, param):
+        super().__init__(param['clusters'])
+        self.param = float(param['alpha'])
+        self.skip = int(param['skip'])
+        self.cov = param['cov']
+        self.histAcc = 0.0
+
+    def e(self, X):
+        lg = mvnpdf[self.cov](np.array([X]), self.means, self.covars)
+        logResps = lg[0] + np.log(self.weights)
         
-        self.weights *= (1.0 - lam)
-        self.weights += lam * self.accResps / self.N
-
-        self.means *= (1.0 - lam)
-        self.means += lam * self.accMeans / self.accResps[:,None]
-
+        self.histAcc += logsumexp(logResps)
+        self.hist.append(-self.histAcc/self.N)
+        #self.hist.append(logsumexp(logResps))
+        maxLg = np.max(logResps)
+        logResps -= maxLg
+        self.resps = np.exp(logResps)
+        np.clip(self.resps, 10*EPS, np.inf, out=self.resps)
+        
+        self.resps /= np.sum(self.resps)
+        self.N += 1
+        lam = 1.0/(np.power(self.N, float(self.param)))
         for c in np.arange(self.n):
-            diff = X - self.means[c]
-            self.accCovars[c] +=  np.outer(self.resps[c] * diff, diff)
-
-        self.covars *= (1.0 - lam)
-        self.covars += lam * self.accCovars / self.accResps[:,None,None]
-
-
-
-    def fit(self, dataset):
-        #print(np.exp(uts.log_mvnpdf(np.array([[1,1]]), np.array([[1,1]]), np.array([[[1,0],[0,1]]]))))
-        #print(dataset.shape())
-        self.__prepare(dataset)
-        for it, X in dataset:
-            print(it)
-            self.__e(X)
-            self.__m(X)
+            self.accResps[c]= (1-lam) * self.accResps[c] + lam * self.resps[c]
+            self.accMeans[c]= (1-lam)* self.accMeans[c] + lam * X * self.resps[c]
+            tmp =  self.accMeans[c] / self.accResps[c] 
+            diff = X - tmp
+            self.accCovars[c] = (1-lam) * self.accCovars[c] + lam *  np.outer(self.resps[c] * diff, diff) 
 
 
+        self.accResps /= np.sum(self.accResps)
 
-    def __prepare(self, dataset):
-        shape = dataset.shape()
-        dim = shape[0][0]
-        self.N = 0;
-        self.accResps = np.zeros((self.n,))
-        self.accMeans = np.zeros((self.n,dim))
-        self.accCovars = np.zeros((self.n,dim,dim))
-        self.weights = np.ones((self.n,))
-        self.weights /= self.n
-        self.means = np.zeros((self.n,dim))
-        for it in range(self.n):
-            self.means[it] = dataset[it]
-        self.covars = np.array([np.identity(dim) for x in range(self.n)])
+    def m(self, X):
+        if self.N < self.skip: return
+        lam = 1.0/(np.power(self.N, float(self.param)))
+        for c in np.arange(self.n):
+            self.weights[c] = self.accResps[c] / (self.N+ 10*EPS ) + EPS
+
+            self.means[c] =  self.accMeans[c] / (self.accResps[c] + 10 * EPS )
+            #diff = X - self.means[c]
+            #self.accCovars[c] = (1-lam) * self.accCovars[c] + lam *  np.outer(self.resps[c] * diff, diff)
 
 
 
-    def __str__(self):
-        out = ""
-        np.set_printoptions(threshold=np.nan)
-        out += 'w: ' + str(self.weights) + '\nm: ' + str(self.means)# + '\nc: ' + str(self.covars)
-        return out
+            self.covars[c] = (self.accCovars[c] + 10* EPS * np.identity(self.dim))/ (self.accResps[c] + 10 * EPS )
+
+        self.weights /= sum(self.weights)
+
 
 

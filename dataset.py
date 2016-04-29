@@ -1,12 +1,24 @@
 import numpy as np
+from config import *
+import utils
+from loaders import *
 
 class Dataset(object):
 
-    def __init__(self, src, n, size=1):
-        self.src = src
+    def __init__(self, src, n, size=1, labels=None, init=None, c=None, norm=1.0):
+        self.src = np.array(src)/norm
+        self.labels = np.array(labels)
         self.n = n
         self.__it = -size
         self.size = size
+        if init == 'random':
+            self.init = []
+            for i in range(c):
+                self.init.append(np.random.random(np.shape(src[0]))*np.random.randint(10,25))
+            print(self.init)
+        else:
+            self.init = init
+
         if len(src) < n * size:
             raise IndexError
 
@@ -20,6 +32,15 @@ class Dataset(object):
             return self.__it, self.src[self.__it]
         else:
             return self.__it, self.src[self.__it:self.__it + self.size]
+
+    def getInit(self):
+        return self.init
+
+    def label(self):
+        if self.size == 1:
+            return self.labels[self.__it]
+        else:
+            return self.labels[self.__it:self.__it + self.size]
 
     def shape(self):
         instance = self.src[0];
@@ -37,6 +58,26 @@ class Dataset(object):
 
     def __getitem__(self, item):
         return self.src[item]
+
+
+
+def get_stream(config):
+    if config.dataset_type == FIXED_GEN:
+        model = config.dataset_params
+        ar, ini = utils.gen(model, config.dataset_n)
+        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=config.dataset_init, c=config.alg_params[CLUSTERS])
+        return stream
+
+    if config.dataset_type == LIM_GEN:
+        pass
+
+    if config.dataset_type == MNIST:
+        ar,ini =  mnist_loader(config)
+        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=ini, c=config.alg_params[CLUSTERS], norm=1.0)
+        return stream
+
+    if config.dataset_type == COVERTYPE:
+        pass
 
 
 
