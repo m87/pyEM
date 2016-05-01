@@ -1,12 +1,16 @@
 import utils as uts
 import numpy as np
 import os
+from config import *
 
+mvnpdf = {'full': uts.log_mvnpdf, 'diag': uts.log_mvnpdf_diag}
+EPS = np.finfo(float).eps
 
 class OnlineEM():
-    def __init__(self, n_clusters):
-        self.n = n_clusters
+    def __init__(self, param):
+        self.n = param[CLUSTERS]
         self.hist = []
+        self.histAcc = 0.0
 
     def e(self, X):
         pass
@@ -18,7 +22,7 @@ class OnlineEM():
         #print(dataset.shape())
         self.prepare(dataset)
         for it, X in dataset:
-     #       print(it)
+            print(it)
             self.e(X)
             self.m(X)
 
@@ -38,7 +42,15 @@ class OnlineEM():
         for it,x in enumerate(dataset.getInit()):
             self.means[it] = x
         self.covars = np.array([np.identity(dim) for x in range(self.n)])
+        self.diagCovars = np.ones((self.n,dim))
+        self.COV = {'full' : self.covars, 'diag' : self.diagCovars}
+        self.I ={'full': 1.0, 'diag': np.identity(self.dim)}
 
+
+    def load(self, path):
+        self.weights = np.load(path+"/weights.npy")
+        self.means = np.load(path+"/means.npy")
+        self.covars = np.load(path+"/covars.npy")
 
     def save(self, path):
         np.save(path+"/weights", self.weights)

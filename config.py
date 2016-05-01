@@ -35,6 +35,7 @@ SET = 'set'
 TRAIN = 'train'
 TRAINTEST = 'train+test'
 TEST = 'test'
+NORM = 'norm'
 
 class Config(object):
     def __init__(self, path):
@@ -51,5 +52,7 @@ class Config(object):
         self.dataset_n = int(raw[DATASET][N])
         self.dataset_params = raw[DATASET][PARAMS]
         self.dirs =  raw[DIRS]
+        self.predict = bool(raw['predict']['active'])
+        self.predict_path = raw['predict']['model_path']
 
         f.close()

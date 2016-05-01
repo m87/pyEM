@@ -1,22 +1,28 @@
 import utils as uts
 import numpy as np
-import online
+from online import *
 from scipy.misc import logsumexp
-EPS = np.finfo(float).eps
 
-mvnpdf = {'full': uts.log_mvnpdf, 'diag': uts.log_mvnpdf_diag}
-
-
-class Stepwise(online.OnlineEM):
+class Stepwise(OnlineEM):
     def __init__(self, param):
-        super().__init__(param['clusters'])
+        super().__init__(param)
+        self.C = float(param['smoothing'])
         self.param = float(param['alpha'])
         self.skip = int(param['skip'])
         self.cov = param['cov']
-        self.histAcc = 0.0
+
+
+    def predict(self, dataset):
+        self.prepare(dataset)
+        res = np.zeros((self.n,))
+        for it, X in dataset:
+            self.e(X)
+            res[np.argmax(self.resps)] +=1
+
+        return res
 
     def e(self, X):
-        lg = mvnpdf[self.cov](np.array([X]), self.means, self.covars)
+        lg = mvnpdf[self.cov](np.array([X]), self.means, self.COV[self.cov])
         logResps = lg[0] + np.log(self.weights)
         
         self.histAcc += logsumexp(logResps)
@@ -47,12 +53,9 @@ class Stepwise(online.OnlineEM):
             self.weights[c] = self.accResps[c] / (self.N+ 10*EPS ) + EPS
 
             self.means[c] =  self.accMeans[c] / (self.accResps[c] + 10 * EPS )
-            #diff = X - self.means[c]
-            #self.accCovars[c] = (1-lam) * self.accCovars[c] + lam *  np.outer(self.resps[c] * diff, diff)
 
-
-
-            self.covars[c] = (self.accCovars[c] + 10* EPS * np.identity(self.dim))/ (self.accResps[c] + 10 * EPS )
+            self.covars[c] = (self.accCovars[c] + 10* EPS * np.identity(self.dim))/ (self.accResps[c] + 10 * EPS ) * self.I[self.cov]
+            self.diagCovars[c] = np.diag(self.covars[c])
 
         self.weights /= sum(self.weights)
 

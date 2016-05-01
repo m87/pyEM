@@ -26,12 +26,17 @@ def main():
     utils.mkdirs(config)
     stream = get_stream(config)
 
-
     alg = algs[config.alg_type](config.alg_params)
-    alg.fit(stream)
-    alg.save(config.alg_result_path)
+    if not config.predict :
+        alg.fit(stream)
+        alg.save(config.alg_result_path)
+        plot(config, alg, stream)
+    else:
+        alg.load(config.predict_path)
+        result = alg.predict(stream)
+        print(result)
+        results(stream, result)
 
-    plot(config, alg, stream)
 
 if __name__ == '__main__':
     main()

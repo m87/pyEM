@@ -1,25 +1,10 @@
 import numpy as np
 import os
 from scipy import linalg
-from matplotlib import pyplot as plt
-from matplotlib.patches import Ellipse
-from scipy.stats import chi2
 from config import *
 EPS = np.finfo(float).eps
 
 
-
-class VecError(Exception): pass
-
-def vec_len(src):
-    return len(src[0])
-
-def vec(src):
-    if len(np.shape(src)) == 2 and np.shape(src)[0] == 1:
-        return np.array(src)
-    if len(np.shape(src)) == 1:
-        return np.array([src])
-    raise VecError()
 
 def genModels(n,dim,lmean, umean, lcovar, ucovar):
     models = []
@@ -41,13 +26,16 @@ def gen(models, size):
     clusters = len(models['weights'])
     out=[]
     ini = []
+    labels =[]
     n= int(size/clusters)+1
     for m in range(clusters):
         w=np.random.multivariate_normal(models['means'][m],models['covars'][m],n)
-        out.extend(w)
+        x = [[i,m] for i in w ]
+        out.extend(x)
         ini.append(w[0])
-        np.random.shuffle(out)
-    return np.array(out),ini
+    np.random.shuffle(out)
+    out = tuple(zip(*out))
+    return np.array(out[0]),ini, np.array(out[1])
 
 
 
@@ -96,45 +84,5 @@ def mkdirs(config):
     for path in config.dirs:
         if not os.path.exists(path):
             os.mkdir(path)
-
-
-
-def display_err(err):
-    #print(err)
-    #for it, i in enumerate(err):
-    #    err[it]= i/(it+1)
-    plt.plot(err[1:])
-    #plt.yscale('log')
-    plt.show()
-    #plt.savefig('./model/plot.pdf')
-
-def eigsorted(cov):
-    vals, vecs = np.linalg.eigh(cov)
-    order = vals.argsort()[::-1]
-    return vals[order], vecs[:, order]
-
-
-def display_result(mu,cov, instances):
-    if(np.shape(mu[0]) != (2,)):
-        return
-    plt.plot()
-    plt.title('model')
-
-    i = list(zip(*instances))
-    plt.scatter(x=i[0], y=i[1])
-    ax = None
-    if ax is None:
-        ax = plt.gca()
-
-    for mo in range(len(mu)):
-        vals, vecs = eigsorted(cov[mo])
-        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
-
-        width, height = 2 * np.sqrt(chi2.ppf(0.5, 2)) * np.sqrt(vals)
-        ellip = Ellipse(xy=mu[mo], width=width, height=height, angle=theta, alpha=0.5, color='red')
-
-        ax.add_artist(ellip)
-
-    plt.show()
 
 

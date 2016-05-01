@@ -11,24 +11,27 @@ def mnist_loader(config):
     m.load_testing()
     m.load_training()
     t = []
+    lab = []
 
     if config.dataset_params[SET] == TEST:
         t.extend(m.test_images)
+        lab.extend(m.test_labels)
         if config.dataset_init == INIT_FIXED:
             ini=[m.test_images[7],m.test_images[0],m.test_images[1],m.test_images[2],m.test_images[3],m.test_images[4],m.test_images[8],m.test_images[11],m.test_images[18],m.test_images[61]]
 
 
     if config.dataset_params[SET] == TRAIN:
         t.extend(m.train_images)
+        lab.extend(m.train_labels)
         if config.dataset_init == INIT_FIXED:
             ini=[m.train_images[0],m.train_images[1],m.train_images[2],m.train_images[3],m.train_images[4],m.train_images[5],m.train_images[7],m.train_images[13],m.train_images[15],m.train_images[17]]
-            print(ini)
-            raise
 
 
     if config.dataset_params[SET] == TRAINTEST:
         t.extend(m.test_images)
         t.extend(m.train_images)
+        lab.extend(m.test_labels)
+        lab.extend(m.train_labels)
         if config.dataset_init == INIT_FIXED:
             ini=[m.test_images[7],m.test_images[0],m.test_images[1],m.test_images[2],m.test_images[3],m.test_images[4],m.test_images[8],m.test_images[11],m.test_images[18],m.test_images[61]]
 
@@ -40,7 +43,7 @@ def mnist_loader(config):
         ini=t[:config.alg_params[CLUSTERS]]
 
 
-    return t, ini
+    return t, ini, labels
 
 def covertype_loader(path):
     pass

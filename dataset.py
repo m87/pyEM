@@ -61,19 +61,22 @@ class Dataset(object):
 
 
 
+
+
+
 def get_stream(config):
     if config.dataset_type == FIXED_GEN:
         model = config.dataset_params
-        ar, ini = utils.gen(model, config.dataset_n)
-        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=config.dataset_init, c=config.alg_params[CLUSTERS])
+        ar, ini, labels = utils.gen(model, config.dataset_n)
+        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=ini, c=config.alg_params[CLUSTERS], labels=labels)
         return stream
 
     if config.dataset_type == LIM_GEN:
         pass
 
     if config.dataset_type == MNIST:
-        ar,ini =  mnist_loader(config)
-        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=ini, c=config.alg_params[CLUSTERS], norm=1.0)
+        ar,ini,labels =  mnist_loader(config)
+        stream = Dataset(src=ar, n=config.dataset_n, size=1, init=ini, c=config.alg_params[CLUSTERS], norm=config.dataset_params[NORM], labels=labels)
         return stream
 
     if config.dataset_type == COVERTYPE:
