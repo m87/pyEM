@@ -2,6 +2,7 @@ import numpy as np
 from config import *
 import utils
 from loaders import *
+from generators import fixed_generator
 
 class Dataset(object):
 
@@ -11,13 +12,7 @@ class Dataset(object):
         self.n = n
         self.__it = -size
         self.size = size
-        if init == 'random':
-            self.init = []
-            for i in range(c):
-                self.init.append(np.random.random(np.shape(src[0]))*np.random.randint(10,25))
-            print(self.init)
-        else:
-            self.init = init
+        self.init = init
 
         if len(src) < n * size:
             raise IndexError
@@ -67,7 +62,7 @@ class Dataset(object):
 def get_stream(config):
     if config.dataset_type == FIXED_GEN:
         model = config.dataset_params
-        ar, ini, labels = utils.gen(model, config.dataset_n)
+        ar, ini, labels = fixed_generator(model, config.dataset_n, config.dataset_init)
         stream = Dataset(src=ar, n=config.dataset_n, size=1, init=ini, c=config.alg_params[CLUSTERS], labels=labels)
         return stream
 

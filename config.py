@@ -3,6 +3,7 @@ import yaml
 ALG = "alg"
 RESULT_PATH = "result_path"
 TYPE = "type"
+SUBTYPE = "subtype"
 ALPHA = "alpha"
 SKIP = "skip"
 CLUSTERS = "clusters"
@@ -36,6 +37,10 @@ TRAIN = 'train'
 TRAINTEST = 'train+test'
 TEST = 'test'
 NORM = 'norm'
+PREDICT= 'predict'
+ACTIVE='active'
+MODEL_PATH = 'model_path'
+
 
 class Config(object):
     def __init__(self, path):
@@ -43,6 +48,7 @@ class Config(object):
         raw = yaml.load(f)
 
         self.alg_type = raw[ALG][TYPE]
+        self.alg_subtype = raw[ALG][SUBTYPE]
         self.alg_params = raw[ALG][PARAMS]
         self.alg_result_path = raw[ALG][RESULT_PATH]
         self.plot_err = bool(raw[PLOT][PLOT_ERR])
@@ -52,7 +58,7 @@ class Config(object):
         self.dataset_n = int(raw[DATASET][N])
         self.dataset_params = raw[DATASET][PARAMS]
         self.dirs =  raw[DIRS]
-        self.predict = bool(raw['predict']['active'])
-        self.predict_path = raw['predict']['model_path']
+        self.predict = bool(raw[PREDICT][ACTIVE])
+        self.predict_path = raw[PREDICT][MODEL_PATH]
 
         f.close()

@@ -4,7 +4,7 @@ from scipy.stats import chi2
 import numpy as np
 
 
-def results(stream, result):
+def results(stream, result, config):
     pass
 
 def display_err(err):
