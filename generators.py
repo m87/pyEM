@@ -16,8 +16,8 @@ def fixed_generator(models, size, init):
         x = [[i,m] for i in w ]
         out.extend(x)
         ini.append(w[0])
-    np.random.shuffle(out)
     out = tuple(zip(*out))
+
     if init == INIT_RANDOM:
         a = np.random.choice(range(len(out[0])), clusters)
         ini =[]

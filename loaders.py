@@ -39,19 +39,35 @@ def mnist_loader(config):
             for i in mnist_init_test:
                 ini.append(m.test_images[i])
 
-    t = list(zip(t,lab))
-    np.random.shuffle(t)
-    t = tuple(zip(*t))
 
     if config.dataset_init == INIT_RANDOM or config.dataset_init == INIT_FIRST:
-        ini=t[0][:config.alg_params[CLUSTERS]]
+        ini=t[:config.alg_params[CLUSTERS]]
 
 
-    return t[0], ini, t[1]
+    return t, ini, lab
 
-def covertype_loader(path):
-    pass
+def covertype_loader(config):
+    raw = []
+    inivisited=[]
+    ini = []
+    labels=[]
+    path=config.dataset_params[PATH]
+    raw = np.load(path+"/data.npy")
+    raw = raw.astype(np.float)
+    labels = np.load(path+"/labels.npy")
+    labels = labels.astype(np.int)
 
+    if config.dataset_init == INIT_FIXED:
+        for it,x in enumerate(labels[1]):
+            if x not in inivisited:
+                inivisited.append(x)
+                ini.append(raw[it])
+            if len(inivisited) == 7:
+                break
+    if config.dataset_init == INIT_RANDOM or config.dataset_init == INIT_FIRST:
+        ini=raw[:config.alg_params[CLUSTERS]]
+
+    return raw, ini, labels
 
 def news_groups_loader(path):
     train = fetch_20newsgroups(subset='train')

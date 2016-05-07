@@ -1,11 +1,11 @@
 import argparse
 import os
 from stepwise import Stepwise, StepwiseGauss
-from entropy import Entropy
-from incremental import Incremental
+from entropy import EntropyGauss
+from incremental import IncrementalGauss
 import utils
-from dataset import Dataset, get_stream
-from offline import Batch, BatchEntropy
+from dataset import Dataset, get_dataset
+from offline import BatchGauss, BatchEntropy
 from config import *
 from benchmark import *
 
@@ -14,13 +14,13 @@ algs= {
         "gauss" : StepwiseGauss,
     },
     "incremental":{
-        "gauss" : None,#IncrementalGauss,
+        "gauss" : IncrementalGauss,
     },
     "entropy": {
-        "gauss" : None,
+        "gauss" : EntropyGauss,
     },
     "batch": {
-        "gauss" : None,
+        "gauss" : BatchGauss,
     },
     "batch-entropy": {
         "gauss" : None,
@@ -33,20 +33,24 @@ def main():
     parser.add_argument('-c', '--config', help='Config file')
     args = parser.parse_args()
 
+    np.set_printoptions(threshold=np.nan)
     config = Config(args.config)
     utils.mkdirs(config)
-    stream = get_stream(config)
+    dataset = get_dataset(config)
+    #dataset.randomize()
+    print(dataset[0], dataset.L[0])
+
 
     alg = algs[config.alg_type][config.alg_subtype](config.alg_params)
     if not config.predict :
-        alg.fit(stream)
+        alg.fit(dataset)
         alg.save(config.alg_result_path)
-        plot(config, alg, stream)
+        plot(config, alg, dataset)
     else:
         alg.load(config.predict_path)
-        result, RSL = alg.predict(stream)
+        result, RSL = alg.predict(dataset)
         np.save('RSL', np.array(RSL))
-        results(stream, result, config)
+        results(dataset, result, config)
 
 
 if __name__ == '__main__':

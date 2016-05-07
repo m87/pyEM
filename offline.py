@@ -1,17 +1,23 @@
 import utils as uts
 import numpy as np
 from scipy.misc import logsumexp
+from config import *
+from thirdparty import log_mvnpdf, log_mvnpdf_diag
 from scipy.stats import multivariate_normal
 EPS = np.finfo(float).eps
 
-class Batch(object):
-    def __init__(self, n_clusters, parma=None):
-        self.n = n_clusters
-        self.param = int(parma)
+class BatchGauss(object):
+    def __init__(self, param):
+        self.n = param[CLUSTERS]
+        self.th = float(param['th'])
+        self.IT = int(param['iter'])
+        self.covt = param['cov']
+        self.param = int(param['n'])
+        self.mvnpdf = {'full': log_mvnpdf, 'diag': log_mvnpdf_diag}
         self.hist = []
 
     def __e(self, X):
-        lg = uts.log_mvnpdf(np.array(X[:self.param]), self.means, self.covars)
+        lg = self.mvnpdf[self.covt](np.array(X[:self.param]), self.means, self.COV[self.covt])
         logResps = lg + np.log(self.weights)
         self.hist.append(-np.sum(logsumexp(logResps,axis=1))/self.N)
         maxLg = np.max(logResps)
@@ -32,14 +38,14 @@ class Batch(object):
             diff = X[:self.param] - self.means[c]
             av = np.dot(post * diff.T, diff) / np.sum(post)
             self.covars[c] = av
+            self.diagCovars[c] = np.diag(self.covars[c])
 
     def predict(self, X):
-        lg = uts.log_mvnpdf(np.array([X]), self.means, self.covars)
+        lg = self.log_mvnpdf[self.covt](np.array([X]), self.means, self.COV[self.covt])
         logResps = lg + np.log(self.weights)
         maxLg = np.max(logResps)
         logResps -= maxLg
         self.resps = np.exp(logResps)
-        np.clip(self.resps, 10*EPS, np.inf, out=self.resps)
         self.resps /= np.sum(self.resps, axis=1)[:, None]
         return np.argmax(self.resps)
         
@@ -47,6 +53,9 @@ class Batch(object):
         self.weights = np.load(weights)
         self.means = np.load(means)
         self.covars = np.load(covars)
+        self.diagCovars = np.zeros((self.dim,))
+        for c in self.covars:
+            self.diagCovars[c] = np.diag(self.covars[c])
 
     def fit(self, dataset):
         self.__prepare(dataset)
@@ -59,9 +68,9 @@ class Batch(object):
             print(j)
             j+=1
             self.__e(dataset)
-            if abs(self.hist[-1] - self.hist[-2]) <= 0.0000001:
+            if abs(self.hist[-1] - self.hist[-2]) <= self.th:
                 return
-            if j > 300:
+            if j > self.IT:
                 return
             self.__m(dataset)
 
@@ -77,6 +86,9 @@ class Batch(object):
         for it in range(self.n):
             self.means[it] = dataset[it]
         self.covars = np.array([np.identity(self.dim) for x in range(self.n)])
+        self.diagCovars = np.ones((self.n,self.dim))
+        self.COV = {'full' : self.covars, 'diag' : self.diagCovars}
+        self.I ={'full': 1.0, 'diag': np.identity(self.dim)}
 
 
 

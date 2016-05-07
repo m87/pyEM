@@ -1,23 +1,39 @@
 import utils as uts
+from thirdparty import log_mvnpdf, log_mvnpdf_diag
 import numpy as np
 from scipy.misc import logsumexp
 import online
+from gaussEM import GaussEM
 EPS = np.finfo(float).eps
 
+
 class Incremental(online.OnlineEM):
-    def __init__(self, n_clusters, param, k=50):
-        super().__init__(n_clusters)
-        self.k = k
-        self.select = param[0]
-        self.lam = float(param[1])
+    def __init__(self, param):
+        super().__init__(param)
+        self.skip = int(param['skip'])
+
+    def prepare(self, dataset):
+        super().prepare(dataset)
+
+
+class IncrementalGauss(Incremental, GaussEM):
+    def __init__(self, param):
+        super().__init__(param)
+        self.cov = param['cov']
+        self.k = param['k']
+        self.select = param['select']
+        self.C = float(param['smoothing'])
+        
         self.histAcc = 0.0
         self.func = {
             'inf': (self.__e_inf, self.__m_inf),
             'one': (self.__e_inf, self.__m_one),
+            'k': (self.__e_inf, self.__m_k),
         }
+        self.mvnpdf = {'full': log_mvnpdf, 'diag': log_mvnpdf_diag}
 
     def __e_inf(self, X):
-        lg = uts.log_mvnpdf(np.array([X]), self.means, self.covars)
+        lg = self.mvnpdf[self.cov](np.array([X]), self.means, self.COV[self.cov])
         logResps = lg[0] + np.log(self.weights)
         self.histAcc += logsumexp(logResps)
         self.hist.append(-self.histAcc/self.N)
@@ -31,44 +47,49 @@ class Incremental(online.OnlineEM):
         
     def __m_inf(self,X):
         self.N += 1
-        #for c in range(self.n):
-        #    tmpR = self.resps[c]
-        #    tmpM = X * self.resps[c]
-        #    self.weights[c] = self.weights[c] +tmpR - self.sfR[self.I]
-        #    self.means[c] = self.means[c] + tmpM - self.sfM[self.I]
-        #    self.sfR[self.I] = tmpR
-        #    self.sfM[self.I] = tmpM
-        #self.I += 1
-
-        #print(self.weights)
         for c in range(self.n):
             self.accResps[c] += self.resps[c]
             self.accMeans[c] += X * self.resps[c]
-            diff = X - self.accMeans[c] / self.accResps[c]
+            diff = X - (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
             self.accCovars[c] +=  np.outer(self.resps[c] * diff, diff)
 
-            if self.N < 30 : return
-            self.means[c] = self.accMeans[c] / self.accResps[c]
-            self.weights[c] = self.accResps[c] / self.N
-            self.covars[c] = self.accCovars[c] / self.accResps[c]
+            self.means[c] = (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
+            self.weights[c] = (self.accResps[c] +self.C) /( self.N+self.n)
+            self.covars[c] = (self.accCovars[c] + self.C *np.identity(self.dim) )/ (self.accResps[c]+self.C) * self.I[self.cov]
+            self.diagCovars[c] = np.diag(self.covars[c])
 
 
     def __m_one(self,X):
         c=np.random.choice(range(self.n), p = self.resps)
         self.N += 1
-        self.accResps[c] += self.resps[c]
-        self.accMeans[c] += X * self.resps[c]
-        diff = X - self.accMeans[c] / self.accResps[c]
-        self.accCovars[c] +=  np.outer(self.resps[c] * diff, diff)
+        self.accResps[c] += 1.0
+        self.accMeans[c] += X 
+        diff = X - (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
+        self.accCovars[c] +=  np.outer(diff, diff)
 
-        if self.N < 30: return
-        self.means[c] = self.accMeans[c] / self.accResps[c]
-        if self.resps[c] > 0.0000001:
-            self.weights[c] = self.accResps[c] / self.N
-
-        self.covars[c] = self.accCovars[c] / self.accResps[c]
+        self.means[c] = (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
+        self.weights[c] = (self.accResps[c] +self.C) /( self.N+self.n)
+        self.covars[c] = (self.accCovars[c] + self.C *np.identity(self.dim) )/ (self.accResps[c]+self.C)* self.I[self.cov]
+        self.diagCovars[c] = np.diag(self.covars[c])
 
 
+    def __m_k(self,X):
+        self.N += 1
+        self.ck=np.zeros((self.n,))
+        for i in range(self.k):
+            c=np.random.choice(range(self.n), p = self.resps)
+            self.ck[c]+=1
+        self.ck /= float(self.k)
+        for c in range(self.n):
+            self.accResps[c] += self.ck[c]
+            self.accMeans[c] += X * self.ck[c]
+            diff = X - (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
+            self.accCovars[c] +=  np.outer(self.ck[c] * diff, diff)
+
+            self.means[c] = (self.accMeans[c] + self.mu0[c]*self.C )  / (self.accResps[c]  + self.C)
+            self.weights[c] = (self.accResps[c] +self.C) /( self.N+self.n)
+            self.covars[c] = (self.accCovars[c] + self.C *np.identity(self.dim) )/ (self.accResps[c]+self.C)* self.I[self.cov]
+            self.diagCovars[c] = np.diag(self.covars[c])
 
 
 
@@ -81,22 +102,18 @@ class Incremental(online.OnlineEM):
 
     def prepare(self, dataset):
         super().prepare(dataset)
-        self.suffResps = np.random.random((self.n, 20))
-        self.weights= np.sum(self.suffResps, axis=1)
-        self.suffMeans = np.random.random((self.n,))
-        for i in range(self.n):
-            self.suffMeans[i] = np.sum(np.random.random((self.dim,20))) 
-        self.accRespsOld = np.random.random((self.n,))
-        self.accMeansOld = np.random.random((self.n,self.dim))
-        self.accCovarsOld = np.zeros((self.n,self.dim,self.dim))
-
-        self.accMeans = self.means*10
-        self.accResps = np.ones((self.n,)) * 10
- #       self.covars = np.array([np.identity(self.dim)*1 for x in range(self.n)])
-
-        self.sfM = np.random.random((20, self.n, self.dim))
-        self.sfR = np.random.random((20, self.n))
-        #self.means = np.sum(self.sfM, axis=2)
-        self.I = 0
-
+        self.accResps = np.zeros((self.n,)) 
+        self.accMeans = np.zeros((self.n,self.dim))
+        self.accCovars = np.zeros((self.n,self.dim,self.dim))
+        self.weights = np.ones((self.n,))
+        self.weights /= self.n
+        self.means = np.zeros((self.n,self.dim))
+        self.mu0 = np.zeros((self.n,self.dim))
+        for it,x in enumerate(dataset.getInit()):
+            self.means[it] =  x
+            self.mu0[it] =  x
+        self.covars = np.array([np.identity(self.dim) for x in range(self.n)])
+        self.diagCovars = np.ones((self.n,self.dim))
+        self.COV = {'full' : self.covars, 'diag' : self.diagCovars}
+        self.I ={'full': 1.0, 'diag': np.identity(self.dim)}
 

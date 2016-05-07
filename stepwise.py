@@ -2,18 +2,19 @@ from thirdparty import log_mvnpdf, log_mvnpdf_diag
 import numpy as np
 from online import *
 from scipy.misc import logsumexp
+from gaussEM import GaussEM
 
 class Stepwise(OnlineEM):
     def __init__(self, param):
         super().__init__(param)
         self.param = float(param['alpha'])
         self.skip = int(param['skip'])
-        self.mbsize=20
+        self.mbsize= int(param['mb'])
 
     def prepare(self, dataset):
         super().prepare(dataset)
 
-class StepwiseGauss(Stepwise):
+class StepwiseGauss(Stepwise, GaussEM):
     def __init__(self, param):
         super().__init__(param)
         self.cov = param['cov']
@@ -23,6 +24,9 @@ class StepwiseGauss(Stepwise):
 
     def e(self, X):
         lg = self.mvnpdf[self.cov](np.array([X]), self.means, self.COV[self.cov])
+        #s = np.inner((X - self.means),(X-self.means))
+        #print(s)
+        #print(self.means[0])
         logResps = lg[0] + np.log(self.weights)
         self.histAcc += logsumexp(logResps)
         self.hist.append(-self.histAcc/self.N)
@@ -69,30 +73,12 @@ class StepwiseGauss(Stepwise):
         self.weights = np.ones((self.n,))
         self.weights /= self.n
         self.means = np.zeros((self.n,self.dim))
-        for it,x in enumerate(dataset.getInit()):
+        for it,x in enumerate(dataset.I):
             self.means[it] = x
         self.covars = np.array([np.identity(self.dim) for x in range(self.n)])
         self.diagCovars = np.ones((self.n,self.dim))
         self.COV = {'full' : self.covars, 'diag' : self.diagCovars}
         self.I ={'full': 1.0, 'diag': np.identity(self.dim)}
-
-    def load(self, path):
-        self.weights = np.load(path+"/weights.npy")
-        self.means = np.load(path+"/means.npy")
-        self.covars = np.load(path+"/covars.npy")
-
-    def save(self, path):
-        np.save(path+"/weights", self.weights)
-        np.save(path+"/means", self.means)
-        np.save(path+"/covars", self.covars)
-        np.save(path+"/hist", self.hist)
-
-    def __str__(self):
-        out = ""
-        np.set_printoptions(threshold=np.nan)
-        out += 'w: ' + str(self.weights) + '\nm: ' + str(self.means) + '\nc: ' + str(self.covars)
-        return out
-
 
 
 

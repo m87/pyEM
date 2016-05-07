@@ -18,31 +18,30 @@ class OnlineEM():
 
     def fit(self, dataset):
         self.prepare(dataset)
-        for it, X in dataset:
+        for it, X in enumerate(dataset):
             print(it)
             self.e(X)
             self.m(X)
 
 
     def prepare(self, dataset):
-        shape = dataset.shape()
-        dim = shape[0][0]
-        self.dim=dim
-        self.N = 0;
+        self.dim, _ = dataset.shape()
+        self.dim = self.dim[0]
+        self.N =1
 
     def predict(self, dataset):
         self.prepare(dataset)
         res = np.zeros((self.n,))
         resL = [[] for i in range(self.n)]
-        for it, X in dataset:
+        for it, X in enumerate(dataset):
             print(it)
             self.e(X)
             res[np.argmax(self.resps)] +=1
-            resL[np.argmax(self.resps)].append(dataset.label())
+            resL[np.argmax(self.resps)].append(dataset.L[it])
 
         return res, resL
 
-
+    #TODO macierz pomyłek
 
 
 
